@@ -17,20 +17,27 @@ type FormValues = {
   price: number;
 };
 
-interface Product {
+export interface Product {
   _id: ObjectId;
   name: string;
   description: string;
   backgroundImage: string;
   stock: number;
   price: number;
+  categories: string[];
 }
 
 interface UpdateProductBtnProps {
-  product: Product;
+  product?: Product;
+  isAdmin: boolean;
+  isLoggedIn: boolean;
 }
 
-const UpdateProductBtn: React.FC<UpdateProductBtnProps> = ({ product }) => {
+const UpdateProductBtn: React.FC<UpdateProductBtnProps> = ({
+  product,
+  isAdmin,
+  isLoggedIn,
+}) => {
   const [imageUrl, setImageUrl] = useState<string>("");
   const [productData, setProductData] = useState<Product | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string>("");
@@ -70,10 +77,10 @@ const UpdateProductBtn: React.FC<UpdateProductBtnProps> = ({ product }) => {
         description: productData.description || "",
         stock: productData.stock || 0,
         price: productData.price || 0,
-        backgroundImage: selectedImageUrl || "",
+        backgroundImage: selectedImageUrl || productData?.backgroundImage || "",
       });
     }
-  }, [productData, reset, selectedImageUrl]);
+  }, [productData, reset, selectedImageUrl, product]);
 
   const modificarProducto = async (data: FormValues) => {
     try {
@@ -122,6 +129,11 @@ const UpdateProductBtn: React.FC<UpdateProductBtnProps> = ({ product }) => {
     setSelectedImageUrl(imageUrl);
   };
 
+  if (!isLoggedIn || !isAdmin) {
+    navigate("/home");
+    return null;
+  }
+
   return (
     <>
       {productData ? (
@@ -135,7 +147,7 @@ const UpdateProductBtn: React.FC<UpdateProductBtnProps> = ({ product }) => {
           }}
         >
           <form
-            className="admin ml-auto mt-5 mb-5"
+            className="admin ml-auto"
             onSubmit={handleSubmit(modificarProducto)}
             encType="multipart/form-data"
             onReset={clearImage}
@@ -158,7 +170,7 @@ const UpdateProductBtn: React.FC<UpdateProductBtnProps> = ({ product }) => {
                 {...register("name", {
                   required: true,
                 })}
-                defaultValue={product?.name}
+                defaultValue={product?.name ?? ""}
               />
               {errors.name?.type === "required" && (
                 <p className="text-danger">El campo nombre es requerido</p>

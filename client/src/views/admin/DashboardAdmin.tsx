@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useForm } from "react-hook-form";
 import swal from "sweetalert2";
@@ -7,6 +8,11 @@ import "../../components/navbar1/NavBar1.css";
 import "./DashboardAdmin.css";
 import { VITE_CLOUDINARY_NAME } from "../../variable";
 import ObjectID from "bson-objectid";
+import React from "react";
+import moment from "moment";
+import "moment/locale/es";
+
+moment.locale("es");
 
 type FormValues = {
   name: string;
@@ -14,7 +20,23 @@ type FormValues = {
   backgroundImage: string;
   stock: number;
   price: number;
+  categories: string;
 };
+
+interface Purchase {
+  _id: ObjectID;
+  idClient: string;
+  products: Array<{
+    productId: string;
+    quantity: number;
+    price: number;
+    _id: string;
+  }>;
+  totalPrice: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface Client {
   _id: ObjectID;
@@ -26,12 +48,40 @@ interface Client {
   isActive: boolean;
 }
 
-const DashboardAdmin: React.FC = () => {
+interface Product {
+  _id: string;
+  name: string;
+  description: string;
+  backgroundImage: string;
+  stock: number;
+  price: number;
+  categories: "handle" | "blade" | "knife";
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface DashboardAdminProps {
+  product?: Product;
+  isAdmin: boolean;
+  isLoggedIn: boolean;
+}
+
+const DashboardAdmin: React.FC<DashboardAdminProps> = ({
+  isAdmin,
+  isLoggedIn,
+}) => {
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQueryClientes, setSearchQueryClientes] = useState("");
   const [originalClientes, setOriginalClientes] = useState<Client[]>([]);
   const [clientes, setClientes] = useState<Client[]>([]);
+  const [compras, setCompras] = useState<Purchase[]>([]);
+  const [searchQueryPurchases, setSearchQueryPurchases] = useState("");
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentPageCompras, setCurrentPageCompras] = useState<number>(1);
+  const [productos, setProductos] = useState<Product[]>([]);
+  const navigate = useNavigate();
+  const [selectedCategory, setSelectedCategory] =
+    useState<string>("categoria1");
   const cloudinaryName = VITE_CLOUDINARY_NAME || "";
   const {
     register,
@@ -49,12 +99,13 @@ const DashboardAdmin: React.FC = () => {
       const dataWithImage = {
         ...data,
         backgroundImage: imageUrl,
+        categories: selectedCategory,
       };
       const response = await axios.post(
         "http://localhost:3001/products",
         dataWithImage
       );
-      console.log(response);
+      console.log(response.data);
 
       swal.fire({
         position: "center",
@@ -105,13 +156,13 @@ const DashboardAdmin: React.FC = () => {
   }, [clientes]);
 
   const filteredClientes = originalClientes.filter((cliente) =>
-    cliente.firstName.toLowerCase().includes(searchQuery.toLowerCase())
+    cliente.firstName.toLowerCase().includes(searchQueryClientes.toLowerCase())
   );
 
   const fetchFilteredClients = async () => {
     try {
       const response = await axios.get(
-        `http://localhost:3001/clients?search=${searchQuery}&page=${currentPage}&perPage=7`
+        `http://localhost:3001/clients?search=${searchQueryClientes}&page=${currentPage}&perPage=7`
       );
       if (response.status === 200) {
         const data = response.data;
@@ -124,12 +175,44 @@ const DashboardAdmin: React.FC = () => {
     }
   };
 
+  const fetchFilteredCompras = async () => {
+    try {
+      const response = await axios.get(
+        `http://localhost:3001/purchases/client/${searchQueryPurchases}`,
+        {
+          params: { search: searchQueryPurchases },
+        }
+      );
+      setCompras(response.data);
+    } catch (error) {
+      console.error("Error searching purchases:", error);
+    }
+  };
+
+  const filteredClientesList = originalClientes.filter((cliente) =>
+    cliente.firstName.toLowerCase().includes(searchQueryClientes.toLowerCase())
+  );
+
   const clientsPerPage = 7;
-  const totalPages = Math.ceil(originalClientes.length / clientsPerPage);
+  const totalPages = Math.ceil(filteredClientesList.length / clientsPerPage);
 
   const startIndex = (currentPage - 1) * clientsPerPage;
   const endIndex = startIndex + clientsPerPage;
-  const paginatedClientes = filteredClientes.slice(startIndex, endIndex);
+  const paginatedClientes = filteredClientesList.slice(startIndex, endIndex);
+
+  const filteredCompras = compras.filter((compra) =>
+    compra.status.toLowerCase().includes(searchQueryPurchases.toLowerCase())
+  );
+
+  const comprasPerPage = 7;
+  const totalPagesCompras = Math.ceil(filteredCompras.length / comprasPerPage);
+
+  const startIndexCompras = (currentPageCompras - 1) * comprasPerPage;
+  const endIndexCompras = startIndexCompras + comprasPerPage;
+  const paginatedCompras = filteredCompras.slice(
+    startIndexCompras,
+    endIndexCompras
+  );
 
   const desactivarUsuario = async (userId: string, isActive: boolean) => {
     try {
@@ -138,13 +221,11 @@ const DashboardAdmin: React.FC = () => {
       );
 
       if (response.status === 200) {
-        // Actualizar la lista de clientes después de la desactivación exitosa
         const updatedClientes = clientes.map((cliente) => {
           if (cliente._id.toString() === userId) {
-            // Convertir ObjectID a string
             return {
               ...cliente,
-              isActive: !isActive, // Cambiar el valor de isActive
+              isActive: !isActive,
             };
           }
           return cliente;
@@ -152,7 +233,6 @@ const DashboardAdmin: React.FC = () => {
 
         setClientes(updatedClientes);
 
-        // Mostrar una confirmación al usuario
         swal.fire({
           position: "center",
           icon: "success",
@@ -169,6 +249,112 @@ const DashboardAdmin: React.FC = () => {
       console.error("Error al desactivar el cliente:", error);
     }
   };
+
+  const fetchPurchases = async (): Promise<Purchase[]> => {
+    try {
+      const respuesta = await axios.get<Purchase[]>(
+        "http://localhost:3001/purchases"
+      );
+      const compra = respuesta.data;
+      return compra;
+    } catch (error) {
+      console.error("Error al obtener las compras:", error);
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    fetchPurchases()
+      .then((purchaseData) => {
+        setCompras(purchaseData);
+      })
+      .catch((error) => {
+        console.error("Error al obtener las compras:", error.message);
+      });
+  }, []);
+
+  const handleSearchPurchase = async () => {
+    try {
+      console.log("Search query:", searchQueryPurchases);
+
+      if (!searchQueryPurchases) {
+        swal.fire({
+          icon: "warning",
+          title: "Ingrese un nombre de cliente",
+          text: "Por favor ingrese un nombre de cliente para buscar compras.",
+        });
+        return;
+      }
+
+      const normalizedSearchQuery = searchQueryPurchases.toLowerCase();
+
+      const matchingClients = originalClientes.filter(
+        (cliente) =>
+          cliente.firstName.toLowerCase().includes(normalizedSearchQuery) ||
+          cliente.lastName.toLowerCase().includes(normalizedSearchQuery)
+      );
+
+      if (matchingClients.length === 0) {
+        swal.fire({
+          icon: "info",
+          title: "Cliente no encontrado",
+          text: "No se encontró un cliente con ese nombre en la lista de clientes.",
+        });
+        return;
+      }
+
+      const clientIds = matchingClients.map((cliente) => cliente._id);
+
+      const response = await axios.get(
+        `http://localhost:3001/purchases/client/${clientIds}`
+      );
+
+      if (response.data.length === 0) {
+        swal.fire({
+          icon: "info",
+          title: "No se encontraron compras",
+          text: "No se encontraron compras para el cliente especificado.",
+        });
+      } else {
+        setCompras(response.data);
+      }
+    } catch (error) {
+      console.error("Error searching purchases:", error);
+      swal.fire({
+        icon: "error",
+        title: "Error al buscar compras",
+        text: "Ocurrió un error al buscar las compras del cliente.",
+      });
+    }
+  };
+
+  const fetchProductos = async (): Promise<Product[]> => {
+    try {
+      const response = await axios.get<Product[]>(
+        "http://localhost:3001/products"
+      );
+      const productosData = response.data;
+      return productosData;
+    } catch (error) {
+      console.error("Error al obtener los productos:", error);
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    fetchProductos()
+      .then((productosData) => {
+        setProductos(productosData);
+      })
+      .catch((error) => {
+        console.error("Error al obtener los productos:", error.message);
+      });
+  }, []);
+
+  if (!isLoggedIn || !isAdmin) {
+    navigate("/home");
+    return null;
+  }
 
   return (
     <div className="perrito-admin">
@@ -232,6 +418,16 @@ const DashboardAdmin: React.FC = () => {
               {errors.price?.type === "required" && (
                 <p className="text-danger">El campo precio es requerido</p>
               )}
+              <h5>Elegí una categoría</h5>
+              <select
+                style={{ height: "3em", borderRadius: "6px" }}
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                <option value="handle">Cabo</option>
+                <option value="blade">Hoja</option>
+                <option value="knife">Cuchillo</option>
+              </select>
               <div className="checkbox-container-admin"></div>
               <button
                 className="sigin-btn-admin"
@@ -310,8 +506,8 @@ const DashboardAdmin: React.FC = () => {
             <div className="text-end mb-5">
               <input
                 style={{ width: "14em" }}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchQueryClientes}
+                onChange={(e) => setSearchQueryClientes(e.target.value)}
                 placeholder="&nbsp;&nbsp;Buscar cliente por nombre"
               />
               <button
@@ -337,7 +533,7 @@ const DashboardAdmin: React.FC = () => {
               </thead>
               <tbody>
                 {paginatedClientes.map((cliente, index) => (
-                  <tr key={cliente._id.toString()}>
+                  <tr key={index}>
                     <td>{startIndex + index + 1}</td>
                     <td>{cliente.firstName}</td>
                     <td>{cliente.lastName}</td>
@@ -365,13 +561,15 @@ const DashboardAdmin: React.FC = () => {
               className="d-flex justify-content-center"
             >
               <ul className="pagination">
-                <li className="page-item">
+                <li
+                  className={`page-item ${currentPage === 1 ? "disabled" : ""}`}
+                >
                   <button
                     className="page-link"
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage(currentPage - 1)}
                   >
-                    Previous
+                    Anterior
                   </button>
                 </li>
                 {[...Array(totalPages)].map((_, page) => (
@@ -389,13 +587,190 @@ const DashboardAdmin: React.FC = () => {
                     </button>
                   </li>
                 ))}
-                <li className="page-item">
+                <li
+                  className={`page-item ${
+                    currentPage === totalPages ? "disabled" : ""
+                  }`}
+                >
                   <button
                     className="page-link"
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(currentPage + 1)}
                   >
-                    Next
+                    Siguiente
+                  </button>
+                </li>
+              </ul>
+            </nav>
+          </div>
+        </div>
+      </div>
+      <hr
+        className="mx-auto mb-5"
+        style={{ border: "solid", opacity: "1", width: "80%" }}
+      />
+      <div className="row">
+        {" "}
+        <div className="col-12 text-center">
+          <div
+            className="col-10 mx-auto mt-5 mb-5 p-5"
+            style={{
+              border: "solid",
+              backgroundColor: "white",
+              opacity: "0.9",
+              borderRadius: "18px",
+              lineHeight: "3em",
+              fontSize: "1.2em",
+            }}
+          >
+            <h1>Historial de compras</h1>
+            <div className="mb-5 d-flex justify-content-between">
+              <div>
+                <input
+                  type="text"
+                  placeholder="Buscar compra por nombre de cliente"
+                  value={searchQueryPurchases}
+                  onChange={(e) => setSearchQueryPurchases(e.target.value)}
+                  style={{ width: "19em" }}
+                  className="text-center"
+                />
+                <button onClick={handleSearchPurchase}>Buscar</button>
+              </div>
+
+              <div className="text-end">
+                <select style={{ width: "15em" }}>
+                  <option value="">Seleccionar estado</option>
+                  <option value="pending pay">Pendiente de pago</option>
+                  <option value="paid">Pagado</option>
+                  <option value="sent">En envio</option>
+                  <option value="submitted">Entregado</option>
+                  <option value="canceled">Cancelado</option>
+                </select>
+                <button
+                  className="ms-4"
+                  onClick={() => {
+                    fetchFilteredClients();
+                  }}
+                >
+                  Buscar
+                </button>
+              </div>
+            </div>
+            <table className="table table-bordered table-striped">
+              <thead>
+                <tr>
+                  <th>Index</th>
+                  <th>Cliente</th>
+                  <th>Producto</th>
+                  <th>Cantidad</th>
+                  <th>Precio por unidad</th>
+                  <th>Precio total</th>
+                  <th>Estado</th>
+                  <th>Fecha de compra</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compras.map((compra, index) => (
+                  <React.Fragment key={`${index}`}>
+                    <tr>
+                      <td>{index + 1}</td>
+                      <td>
+                        {
+                          clientes.find(
+                            (cliente) =>
+                              cliente._id.toString() ===
+                              compra.idClient.toString()
+                          )?.firstName
+                        }{" "}
+                        {
+                          clientes.find(
+                            (cliente) =>
+                              cliente._id.toString() ===
+                              compra.idClient.toString()
+                          )?.lastName
+                        }
+                      </td>
+                      <td>
+                        {compra.products.map((producto, productoIndex) => (
+                          <p key={productoIndex}>
+                            {" "}
+                            {
+                              productos.find(
+                                (p) => p._id === producto.productId
+                              )?.name
+                            }
+                          </p>
+                        ))}
+                      </td>
+                      <td>
+                        {compra.products.map((producto, index) => (
+                          <p key={index}>{producto.quantity}</p>
+                        ))}
+                      </td>
+                      <td>
+                        {compra.products.map((producto, index) => (
+                          <p key={index}>{producto.price}</p>
+                        ))}
+                      </td>
+                      <td>{compra.totalPrice}</td>
+                      <td>{compra.status}</td>
+                      <td>
+                        {moment(compra.createdAt).format("D/M/YYYY H:mm")}
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+
+            <nav
+              aria-label="Page navigation example"
+              className="d-flex justify-content-center"
+            >
+              <ul className="pagination">
+                <li
+                  className={`page-item ${
+                    currentPageCompras === 1 ? "disabled" : ""
+                  }`}
+                >
+                  <button
+                    className="page-link"
+                    disabled={currentPageCompras === 1}
+                    onClick={() =>
+                      setCurrentPageCompras(currentPageCompras - 1)
+                    }
+                  >
+                    Anterior
+                  </button>
+                </li>
+                {[...Array(totalPagesCompras)].map((_, page) => (
+                  <li
+                    className={`page-item ${
+                      currentPageCompras === page + 1 ? "active" : ""
+                    }`}
+                    key={page}
+                  >
+                    <button
+                      className="page-link"
+                      onClick={() => setCurrentPageCompras(page + 1)}
+                    >
+                      {page + 1}
+                    </button>
+                  </li>
+                ))}
+                <li
+                  className={`page-item ${
+                    currentPageCompras === totalPagesCompras ? "disabled" : ""
+                  }`}
+                >
+                  <button
+                    className="page-link"
+                    disabled={currentPageCompras === totalPagesCompras}
+                    onClick={() =>
+                      setCurrentPageCompras(currentPageCompras + 1)
+                    }
+                  >
+                    Siguiente
                   </button>
                 </li>
               </ul>

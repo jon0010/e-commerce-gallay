@@ -6,7 +6,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 import ObjectId from "bson-objectid";
-
 import "./ProdctCard.css";
 
 interface ProductCardProps {
@@ -46,13 +45,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
   });
 
   const verificarAutenticacion = async (token: string | undefined) => {
-    console.log({ token });
     if (token) {
       try {
-        console.log("1111111111");
         const decoded = decodeToken(token) as { isAdmin: boolean };
 
-        console.log({ decoded });
         setIsLoggedIn(true);
         setIsAdmin(decoded.isAdmin);
       } catch (error) {
@@ -68,7 +64,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   useEffect(() => {
     const userToken = Cookies.get("token");
-    console.log({ userToken });
     verificarAutenticacion(userToken);
   }, [location]);
 
@@ -102,7 +97,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
       setIsHoverEnabled(true);
     } catch (error) {
-      // Error al eliminar el producto
       Swal.fire({
         icon: "error",
         title: "Ups...",
@@ -199,6 +193,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
             </div>
             <h5 className="card-title-inicio">{product.name}</h5>
             <p className="card-stock-inicio">stock: {product.stock}</p>
+            <div className="botonCarrito"> </div>
           </div>
         </div>
       </div>

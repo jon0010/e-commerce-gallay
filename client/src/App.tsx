@@ -12,12 +12,16 @@ import ProductDetail from "./components/detailproductos/ProductDetail";
 import NavBar3 from "../src/components/navbar3/NavBar3";
 import NavBar1 from "../src/components/navbar1/NavBar1";
 import NavBar2 from "../src/components/navbar2/NavBar2";
-import UpdateProduct from "../src/components/BotonEditarProducto/UpdateProductBtn";
 import Cookies from "js-cookie";
 import ObjectIDProps from "bson-objectid";
 import { decodeToken } from "react-jwt";
+import CarritoCompra from "./components/carritoDeCompras/CarritoCompras";
+import UpdateProductBtn from "../src/components/BotonEditarProducto/UpdateProductBtn";
+import { ICartItem } from "./components/carritoDeCompras/CarritoCompras";
+import CompraFinalizada from "./views/compraFinalizada/CompraFinalizada";
+import EligeTuHoja from "./components/eligeTuHoja/EligeTuHoja";
 
-interface ProductCardProps {
+export interface ProductCardProps {
   product: Product;
   hovered: boolean;
   onMouseEnter: () => void;
@@ -27,68 +31,122 @@ interface ProductCardProps {
   onDelete: () => void;
 }
 
-interface Product {
+export interface Product {
   _id: ObjectIDProps;
   name: string;
   description: string;
   backgroundImage: string;
   stock: number;
   price: number;
+  categories: string[];
 }
 
-const App: React.FC<ProductCardProps> = ({ product }) => {
+const App = () => {
+  const [clientId, setClientId] = useState<string>("");
+  const [purchasesId, setPurchasesId] = useState<string>("");
+  const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(
+    undefined
+  );
   const [isAdmin, setIsAdmin] = useState(false);
   const location = useLocation();
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     const userToken = Cookies.get("token");
-    return !!userToken; // Convierte el token en un valor booleano
+    return !!userToken;
   });
 
+  useEffect(() => {
+    const userToken = Cookies.get("token");
+    if (userToken) {
+      const decoded = decodeToken(userToken) as { _id: string };
+      setClientId(decoded._id);
+    }
+  }, []);
+
   const verificarAutenticacion = async (token: string | undefined) => {
-    console.log({ token });
     if (token) {
       try {
-        console.log("1111111111");
-        const decoded = decodeToken(token) as { isAdmin: boolean };
+        const decoded = decodeToken(token) as { isAdmin: boolean; _id: string };
 
         console.log({ decoded });
+
         setIsLoggedIn(true);
         setIsAdmin(decoded.isAdmin);
+        setClientId(decoded?._id);
       } catch (error) {
-        console.error("Error parsing token:", error);
         setIsLoggedIn(false);
         setIsAdmin(false);
+        setClientId("");
       }
     } else {
+      console.log("555555555");
       setIsLoggedIn(false);
       setIsAdmin(false);
+      setClientId("");
     }
   };
 
   useEffect(() => {
     const userToken = Cookies.get("token");
-    console.log({ userToken });
     verificarAutenticacion(userToken);
   }, [location]);
+
+
 
   return (
     <>
       {isLoggedIn && isAdmin && <NavBar3 />}
-      {isLoggedIn && !isAdmin && <NavBar2 />}
+      {isLoggedIn && !isAdmin && <NavBar2 clientId={clientId} />}
       {!isLoggedIn && <NavBar1 />}
-
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/home" element={<Home />} />
         <Route path="/signup" element={<SignUpForm />} />
         <Route path="/creatucuchillo" element={<CreaTuCuchillo />} />
+        <Route path="eligetuhoja" element={<EligeTuHoja />} />
         <Route path="/help" element={<Help />} />
-        <Route path="/admin" element={<DashboardAdmin />} />
-        <Route path="/product/id/:id" element={<ProductDetail />} />
+        <Route
+          path="/admin"
+          element={<DashboardAdmin isAdmin={isAdmin} isLoggedIn={isLoggedIn} />}
+        />
         <Route
           path="/product/edit/:id"
-          element={<UpdateProduct product={product} />}
+          element={
+            <UpdateProductBtn
+              product={selectedProduct ?? undefined}
+              isLoggedIn={isLoggedIn}
+              isAdmin={isAdmin}
+            />
+          }
+        />
+        <Route
+          path="/product/id/:id"
+          element={
+            <ProductDetail
+              clientId={clientId}
+              
+            />
+          }
+        />
+
+        <Route
+          path="/carritocompra"
+          element={
+            <CarritoCompra
+              clientId={clientId}
+              purchasesId={purchasesId}
+           
+            />
+          }
+        />
+        <Route
+          path="/compra-finalizada"
+          element={
+            <CompraFinalizada
+              clientId={clientId}
+        
+            />
+          }
         />
       </Routes>
       <Footer />

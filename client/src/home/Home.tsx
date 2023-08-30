@@ -21,13 +21,12 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const [isHoverEnabled, setIsHoverEnabled] = useState(true);
-  const [showModal, setShowModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPriceFilter, setSelectedPriceFilter] = useState<string>("");
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState<string>(""); // Default filter value
+  const [selectedFilter, setSelectedFilter] = useState<string>("");
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
 
@@ -107,8 +106,10 @@ const Home: React.FC = () => {
         const response = await axios.get<Product[]>(
           "http://localhost:3001/products"
         );
+        console.log({ a: response });
+        //logica filtrado por categoria
         setProducts(response.data);
-        setFilteredProducts(response.data); // Mostrar todos los productos al principio
+        setFilteredProducts(response.data);
       } catch (error) {
         console.log(error);
       }
@@ -239,15 +240,9 @@ const Home: React.FC = () => {
     }
   };
 
-  const editModalOpen = (product: Product) => {
-    setSelectedProduct(product);
-    setShowModal(true);
-  };
-
   const handleCardClick = (product: Product) => {
-    if (!showModal) {
-      navigate(`/product/id/${product._id}`);
-    }
+    setSelectedProduct(product);
+    navigate(`/product/edit/${product._id}`);
   };
 
   return (
@@ -366,8 +361,8 @@ const Home: React.FC = () => {
                       handleMaxPriceChange(event.target.value)
                     }
                   />
-                  <div className="Arrow-icon" onClick={handleRangeSearch}>
-                    <i className="bi bi-arrow-right-circle"></i>
+                  <div className="Arrow-iconSelect" onClick={handleRangeSearch}>
+                    <i className="biarrow bi-arrow-right-circle"></i>
                   </div>
                 </div>
               </div>
@@ -384,7 +379,7 @@ const Home: React.FC = () => {
                     onMouseEnter={() => setHoveredCard(index)}
                     onMouseLeave={() => setHoveredCard(null)}
                     setProducts={setProducts}
-                    onClick={handleCardClick}
+                    onClick={() => handleCardClick(product)}
                     onDelete={() => handleDeleteProduct(product)}
                   />
                 </div>

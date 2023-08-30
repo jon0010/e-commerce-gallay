@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import ObjectId from "bson-objectid";
+import Swal from "sweetalert2";
+
 import "./ProductosDetail.css";
+
+interface ProductDetailProps {
+  clientId: string;
+}
 
 interface Product {
   _id: ObjectId;
@@ -11,11 +17,70 @@ interface Product {
   backgroundImage: string;
   price: number;
   stock: number;
+  quantity: number;
 }
 
-const ProductDetail: React.FC = () => {
+const ProductDetail: React.FC<ProductDetailProps> = ({ clientId }) => {
   const { id } = useParams<{ id: string }>();
-  const [product, setProduct] = useState<Product | null>(null);
+  const [productData, setProductData] = useState<Product | null>(null);
+  const [purchaseId, setPurchaseId] = useState<string | null>(null);
+  const [cartUpdate, setCartUpdate] = useState<number>(0);
+
+  const navigate = useNavigate();
+
+  const addToCartHandler = async (product: Product) => {
+    try {
+      const { _id: productId, price } = product;
+      const quantity = 1;
+
+      if (!clientId) {
+        alert("Por Favor Registrese antes de realizar una compra");
+        navigate("/login");
+        return;
+      }
+
+      // Verifica si la última compra fue finalizada
+      if (!purchaseId) {
+        // Si la compra anterior ha sido finalizada, crea una nueva compra
+        const createPurchaseResponse = await axios.post(
+          `http://localhost:3001/purchases/${clientId}`,
+          {
+            products: [
+              {
+                productId,
+                quantity,
+                price,
+              },
+            ],
+            totalPrice: price,
+          }
+        );
+
+        const createdPurchase = createPurchaseResponse.data;
+        setPurchaseId(createdPurchase._id);
+      } else {
+        await axios.post(
+          `http://localhost:3001/purchases/${clientId}/products`,
+          {
+            productId,
+            quantity,
+            price,
+          }
+        );
+      }
+      Swal.fire({
+        position: "center",
+        icon: "success",
+        title: "producto agregado correctamente!",
+        showConfirmButton: false,
+        timer: 1500,
+      });
+      navigate("/carritocompra");
+      setCartUpdate((prevValue) => prevValue + 1);
+    } catch (error) {
+      console.error("Error al agregar el producto al carrito:", error);
+    }
+  };
 
   useEffect(() => {
     if (id !== undefined) {
@@ -24,8 +89,8 @@ const ProductDetail: React.FC = () => {
           const response = await axios.get<Product>(
             `http://localhost:3001/products/id/${encodeURIComponent(productId)}`
           );
-          const productData = response.data;
-          setProduct(productData);
+          const product = response.data;
+          setProductData(product);
         } catch (error) {
           console.error("Error al obtener los detalles del producto:", error);
         }
@@ -33,38 +98,41 @@ const ProductDetail: React.FC = () => {
 
       fetchProductDetails(id);
     }
-  }, [id]);
+  }, [id, cartUpdate]);
 
   return (
     <>
-      {product ? (
+      {productData ? (
         <div className="container mt-5">
           <div className="row">
             <div className="col-md-8">
               <div className="card tarjDetail">
                 <img
-                  src={product.backgroundImage}
+                  src={productData.backgroundImage}
                   className="card-img-top"
-                  alt={product.name}
+                  alt={productData.name}
                 />
               </div>
 
               <div className="card mb-5 p-4">
                 <h2 className="card-img-top">Descripcion</h2>{" "}
-                <p className="card-text">{product.description}</p>
+                <p className="card-text">{productData.description}</p>
               </div>
             </div>
             <div className="col-md-4">
               <div className="card plan-card">
                 <div className="card-body">
-                  <h1 className="card-title">{product.name}</h1>
+                  <h1 className="card-title">{productData.name}</h1>
                   <div className="etiquet-price">
-                    <p>${product.price}</p>
+                    <p>${productData.price}</p>
                     <div></div>
                   </div>
 
-                  <p className="card-text mt-3">Stock: {product.stock}</p>
-                  <button className="boton">
+                  <p className="card-text mt-3">Stock: {productData.stock}</p>
+                  <button
+                    onClick={() => addToCartHandler(productData)}
+                    className="boton"
+                  >
                     <svg
                       viewBox="0 0 16 16"
                       className="bi bi-cart-check"
